@@ -1,0 +1,29 @@
+# TTS Service Dependencies
+
+# FastAPI 웹 프레임워크
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# 데이터 검증 및 설정
+pydantic==2.5.0
+
+# 환경 변수 관리
+python-dotenv==1.0.1
+
+# Azure Speech Services (TTS)
+azure-cognitiveservices-speech==1.45.0
+
+# 파일 처리 및 응답
+python-multipart==0.0.6
+
+# HTTP 클라이언트 (다른 서비스 통신용)
+httpx==0.25.2
+
+# JSON 처리 및 유틸리티
+python-dateutil==2.8.2
+
+# Base64 인코딩 (내장 모듈이지만 명시)
+# uuid (내장 모듈)
+# io (내장 모듈)
+# json (내장 모듈)
+# base64 (내장 모듈)

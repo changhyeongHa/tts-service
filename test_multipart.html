@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Multipart 테스트</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .test-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background-color 0.3s;
+        }
+        .test-button:hover {
+            background-color: #0056b3;
+        }
+        .test-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .audio-player {
+            margin: 10px 0;
+            width: 100%;
+        }
+        .json-display {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 TTS Multipart Response 테스트</h1>
+        
+        <!-- 간단한 테스트 -->
+        <div class="test-section">
+            <h3>1. 간단한 테스트 (파라미터 없음)</h3>
+            <button class="test-button" onclick="testSimpleMultipart()">
+                📡 /tts/test-multipart 호출
+            </button>
+            <div id="simple-result"></div>
+        </div>
+        
+        <!-- 커스텀 JSON 테스트 -->
+        <div class="test-section">
+            <h3>2. 커스텀 JSON 테스트</h3>
+            <textarea id="custom-json" placeholder="JSON 데이터를 입력하세요...">
+{
+    "success": true,
+    "messages": [
+        {"HumanMessage": "자동차보험료 계산 방법 알려줘"},
+        {"AIMessage": "자동차보험료는 운전자의 나이, 운전경력, 차량 종류, 보상 범위 등을 고려하여 계산됩니다."}
+    ],
+    "citations": [
+        {"title": "보험료계산서.pdf", "page": 15},
+        {"title": "자동차보험가이드.pdf", "page": 23}
+    ]
+}
+            </textarea>
+            <button class="test-button" onclick="testCustomMultipart()">
+                📡 /tts/convert-rag-response 호출
+            </button>
+            <div id="custom-result"></div>
+        </div>
+
+        <!-- cURL 예시 -->
+        <div class="test-section">
+            <h3>3. cURL 명령어 예시</h3>
+            <div class="json-display">
+# 간단한 테스트
+curl -X POST "http://localhost:8003/tts/test-multipart" \
+     -H "accept: */*" \
+     --output response.txt
+
+# 커스텀 JSON 테스트  
+curl -X POST "http://localhost:8003/tts/convert-rag-response" \
+     -H "accept: multipart/form-data" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "success": true,
+       "messages": [
+         {"HumanMessage": "테스트 질문"},
+         {"AIMessage": "테스트 답변입니다"}
+       ],
+       "citations": []
+     }' \
+     --output response.txt
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8003';
+
+        async function testSimpleMultipart() {
+            const button = event.target;
+            const resultDiv = document.getElementById('simple-result');
+            
+            button.disabled = true;
+            resultDiv.innerHTML = '<div class="result info">요청 중...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/tts/test-multipart`, {
+                    method: 'POST'
+                });
+                
+                await handleMultipartResponse(response, resultDiv);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">오류: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function testCustomMultipart() {
+            const button = event.target;
+            const resultDiv = document.getElementById('custom-result');
+            const jsonInput = document.getElementById('custom-json');
+            
+            button.disabled = true;
+            resultDiv.innerHTML = '<div class="result info">요청 중...</div>';
+            
+            try {
+                // JSON 유효성 검사
+                const jsonData = JSON.parse(jsonInput.value);
+                
+                const response = await fetch(`${API_BASE}/tts/convert-rag-response`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jsonData)
+                });
+                
+                await handleMultipartResponse(response, resultDiv);
+                
+            } catch (error) {
+                if (error instanceof SyntaxError) {
+                    resultDiv.innerHTML = `<div class="result error">JSON 형식 오류: ${error.message}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">요청 오류: ${error.message}</div>`;
+                }
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function handleMultipartResponse(response, resultDiv) {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // 헤더 정보 표시
+            let headerInfo = "📋 응답 헤더:\n";
+            headerInfo += `Content-Type: ${response.headers.get('content-type')}\n`;
+            headerInfo += `X-Voice-Name: ${response.headers.get('X-Voice-Name') || 'N/A'}\n`;
+            headerInfo += `X-Response-Type: ${response.headers.get('X-Response-Type') || 'N/A'}\n`;
+            headerInfo += `X-RAG-Success: ${response.headers.get('X-RAG-Success') || 'N/A'}\n`;
+            headerInfo += `X-Citations-Count: ${response.headers.get('X-Citations-Count') || 'N/A'}\n\n`;
+
+            // Multipart 데이터 파싱
+            const formData = await response.formData();
+            
+            let result = headerInfo;
+            result += "📦 Multipart 구성:\n";
+            
+            // JSON 파트 처리
+            const jsonPart = formData.get('json');
+            if (jsonPart) {
+                const jsonText = await jsonPart.text();
+                const jsonObj = JSON.parse(jsonText);
+                result += "✅ JSON Part 발견:\n";
+                result += JSON.stringify(jsonObj, null, 2) + "\n\n";
+            }
+            
+            // Audio 파트 처리
+            const audioPart = formData.get('audio');
+            if (audioPart) {
+                result += `✅ Audio Part 발견:\n`;
+                result += `- 파일명: ${audioPart.name}\n`;
+                result += `- 크기: ${audioPart.size} bytes\n`;
+                result += `- 타입: ${audioPart.type}\n\n`;
+                
+                // 오디오 플레이어 추가
+                const audioUrl = URL.createObjectURL(audioPart);
+                result += "🎵 오디오 플레이어:";
+                
+                resultDiv.innerHTML = `<div class="result success">${result}</div>`;
+                
+                const audioPlayer = document.createElement('audio');
+                audioPlayer.controls = true;
+                audioPlayer.src = audioUrl;
+                audioPlayer.className = 'audio-player';
+                resultDiv.appendChild(audioPlayer);
+                
+                return;
+            }
+            
+            resultDiv.innerHTML = `<div class="result success">${result}</div>`;
+        }
+    </script>
+</body>
+</html>
