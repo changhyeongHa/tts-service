@@ -48,7 +48,8 @@ class MessageDict(BaseModel):
 
 class Citation(BaseModel):
     title: str
-    page: int
+    page: str  # RAG에서 str로 반환되므로 타입 맞춤
+    download_link: str = ""  # 다운로드 링크 추가
 
 class RAGResponse(BaseModel):
     success: bool

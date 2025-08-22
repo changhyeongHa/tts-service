@@ -27,8 +27,33 @@
 
 ## 📡 API 명세
 
+### 🏠 GET /
+서비스 루트 엔드포인트 - 기본 상태 확인
+
+#### 응답 (Response)
+```json
+{
+  "message": "TTS Service is running",
+  "status": "healthy"
+}
+```
+
+### ❤️ GET /health
+서비스 상태 확인 엔드포인트 - Azure Speech 연결 테스트 포함
+
+#### 응답 (Response)
+```json
+{
+  "status": "healthy",
+  "service": "TTS Service", 
+  "version": "1.0.0",
+  "azure_speech_region": "koreacentral",
+  "default_voice": "ko-KR-SunHiNeural"
+}
+```
+
 ### 🎵 POST /tts/convert
-텍스트를 음성 파일로 변환하는 기본 엔드포인트
+텍스트를 음성 파일로 변환하는 기본 엔드포인트 - WAV 파일 직접 반환
 
 #### 요청 (Request)
 ```http
@@ -41,8 +66,54 @@ Content-Type: application/json
 }
 ```
 
+#### 요청 필드 설명
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| `text` | string | ✅ | - | 변환할 텍스트 (최대 1000자) |
+| `voice_name` | string | ❌ | ko-KR-SunHiNeural | 음성 종류 |
+
+#### 응답 (Response) - WAV 파일
+```http
+HTTP/1.1 200 OK
+Content-Type: audio/wav
+Content-Disposition: attachment; filename="tts_output.wav"
+X-Voice-Name: ko-KR-SunHiNeural
+X-Text-Length: 50
+X-TTS-Success: true
+X-TTS-Message: 음성 합성 완료
+
+[WAV 오디오 파일 바이너리 데이터]
+```
+
+### 📋 POST /tts/convert-json
+텍스트를 음성으로 변환 - JSON 응답 형태
+
+#### 요청 (Request)
+```http
+POST /tts/convert-json
+Content-Type: application/json
+
+{
+  "text": "변환할 텍스트 내용",
+  "voice_name": "ko-KR-SunHiNeural"
+}
+```
+
+#### 응답 (Response) - JSON
+```json
+{
+  "success": true,
+  "message": "음성 합성 완료",
+  "filename": "/tmp/temp_audio_file.wav",
+  "voice_name": "ko-KR-SunHiNeural",
+  "text_length": 25
+}
+```
+
 ### 🤖 POST /tts/convert-rag-response
-**NEW!** RAG 응답을 JSON + Base64 음성으로 변환
+**⭐ NEW!** RAG 응답을 Multipart 형태로 변환 (JSON + WAV 동시 반환)
+
+> **📋 최신 업데이트**: `citations` 배열에 `download_link` 필드가 추가되어 원본 문서 다운로드 링크를 제공합니다.
 
 #### 요청 (Request)
 ```http
@@ -56,14 +127,34 @@ Content-Type: application/json
     {"AIMessage": "자동차보험료는 다음과 같이 계산됩니다..."}
   ],
   "citations": [
-    {"title": "보험료계산서.pdf", "page": 15},
-    {"title": "자동차보험가이드.pdf", "page": 23}
+    {
+      "title": "보험료계산서.pdf", 
+      "page": "15",
+      "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2501)_..."
+    },
+    {
+      "title": "자동차보험가이드.pdf", 
+      "page": "23",
+      "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2502)_..."
+    }
   ]
 }
 ```
 
-#### 응답 (Response) - JSON
-```json
+#### 응답 (Response) - Multipart Response
+```http
+HTTP/1.1 200 OK
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+X-RAG-Success: true
+X-Voice-Name: ko-KR-SunHiNeural
+X-Citations-Count: 2
+X-Audio-Format: wav
+X-Response-Type: multipart
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="json"
+Content-Type: application/json
+
 {
   "success": true,
   "messages": [
@@ -71,25 +162,31 @@ Content-Type: application/json
     {"AIMessage": "자동차보험료는 다음과 같이 계산됩니다..."}
   ],
   "citations": [
-    {"title": "보험료계산서.pdf", "page": 15},
-    {"title": "자동차보험가이드.pdf", "page": 23}
-  ],
-  "audio_file": "UklGRiYSAABXQVZFZm10IBAAAAABAAEAQB8AAIA...",
-  "voice_info": {
-    "voice_name": "ko-KR-SunHiNeural",
-    "text_length": 125,
-    "audio_format": "wav",
-    "file_size": 245760,
-    "encoding": "base64"
-  }
+    {
+      "title": "보험료계산서.pdf", 
+      "page": "15",
+      "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2501)_..."
+    },
+    {
+      "title": "자동차보험가이드.pdf", 
+      "page": "23",
+      "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2502)_..."
+    }
+  ]
 }
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="audio"; filename="answer.wav"
+Content-Type: audio/wav
+
+[WAV 오디오 파일 바이너리 데이터]
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
 ### 📁 POST /tts/convert-rag-response-file
 RAG 응답을 받아서 WAV 파일로 직접 다운로드
 
 #### 요청 (Request)
-동일한 RAG 응답 구조
+동일한 RAG 응답 구조 (위와 동일)
 
 #### 응답 (Response) - WAV 파일
 ```http
@@ -97,70 +194,49 @@ HTTP/1.1 200 OK
 Content-Type: audio/wav
 Content-Disposition: attachment; filename="rag_answer.wav"
 X-Voice-Name: ko-KR-SunHiNeural
+X-Text-Length: 125
 X-RAG-Success: true
 X-Citations-Count: 2
 X-First-Citation: 보험료계산서.pdf::15
+X-TTS-Success: true
+X-AI-Message-Preview: 자동차보험료는 다음과 같이 계산됩니다...
+X-RAG-Messages-Count: 2
 
 [WAV 오디오 파일 바이너리 데이터]
 ```
 
-#### 요청 필드 설명
-| 필드 | 타입 | 필수 | 기본값 | 설명 |
-|------|------|------|--------|------|
-| `text` | string | ✅ | - | 변환할 텍스트 (최대 5000자) |
-| `voice_name` | string | ❌ | ko-KR-SunHiNeural | 음성 종류 |
-| `rate` | integer | ❌ | 0 | 말하기 속도 (-50 ~ +200) |
-| `pitch` | integer | ❌ | 0 | 음성 높낮이 (-50 ~ +50) |
-| `style` | string | ❌ | neutral | 감정 스타일 |
-| `role` | string | ❌ | narrator | 음성 역할 |
+### 📝 주요 데이터 모델
 
-#### 응답 (Response)
-```http
-HTTP/1.1 200 OK
-Content-Type: audio/wav
-Content-Disposition: attachment; filename="output.wav"
-Content-Length: 245760
-X-Voice-Name: ko-KR-SunHiNeural
-X-Processing-Time: 1.23
-X-Text-Length: 50
-
-[WAV 오디오 파일 바이너리 데이터]
+#### TTSRequest
+```python
+class TTSRequest(BaseModel):
+    text: str
+    voice_name: str = "ko-KR-SunHiNeural"  # 기본값
 ```
 
-### ❤️ GET /health
-서비스 상태 확인 엔드포인트
-
-#### 응답 (Response)
-```json
-{
-  "status": "healthy",
-  "service": "TTS Service",
-  "version": "1.0.0",
-  "uptime": "3 days, 12:45:32",
-  "azure_connection": "connected",
-  "available_voices": 142,
-  "supported_languages": 45
-}
+#### TTSResponse (JSON 응답용)
+```python
+class TTSResponse(BaseModel):
+    success: bool
+    message: str
+    filename: str = None
 ```
 
-### 🎭 GET /voices
-사용 가능한 음성 목록 조회
+#### RAGTTSRequest (RAG 응답 구조)
+```python
+class RAGTTSRequest(BaseModel):
+    success: bool
+    messages: List[MessageDict]
+    citations: List[Citation] = []
 
-#### 응답 (Response)
-```json
-{
-  "voices": [
-    {
-      "name": "ko-KR-SunHiNeural",
-      "display_name": "선희",
-      "language": "한국어",
-      "gender": "Female",
-      "styles": ["cheerful", "sad", "angry", "calm"],
-      "roles": ["narrator", "character"]
-    }
-  ],
-  "total_count": 142
-}
+class MessageDict(BaseModel):
+    HumanMessage: str = None
+    AIMessage: str = None
+
+class Citation(BaseModel):
+    title: str
+    page: str                # RAG에서 문자열로 반환
+    download_link: str = ""  # 원본 문서 다운로드 링크
 ```
 
 ## 🎵 지원 음성
@@ -345,39 +421,78 @@ docker-compose -f docker-compose-voice.yml up tts-service -d
 
 ### 🌐 cURL 테스트
 ```bash
-# 기본 음성 생성
+# 서비스 상태 확인
+curl -X GET "http://localhost:8003/"
+
+# 헬스체크 (Azure 연결 확인 포함)
+curl -X GET "http://localhost:8003/health"
+
+# 기본 음성 생성 (WAV 파일 직접 반환)
 curl -X POST "http://localhost:8003/tts/convert" \
   -H "Content-Type: application/json" \
   -d '{"text": "안녕하세요, 음성 변환 테스트입니다"}' \
   --output basic_test.wav
 
-# 감정을 담은 음성 생성
+# 다른 음성으로 생성
 curl -X POST "http://localhost:8003/tts/convert" \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "정말 기쁘고 즐거운 하루입니다!",
-    "voice_name": "ko-KR-SunHiNeural",
-    "style": "cheerful",
-    "rate": 10,
-    "pitch": 5
+    "text": "다른 음성으로 테스트해보겠습니다",
+    "voice_name": "ko-KR-InJoonNeural"
   }' \
-  --output cheerful_test.wav
+  --output male_voice_test.wav
+
+# JSON 응답 형태로 변환
+curl -X POST "http://localhost:8003/tts/convert-json" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "JSON 응답 테스트입니다", "voice_name": "ko-KR-SunHiNeural"}'
+
+# RAG 응답을 Multipart로 변환 (JSON + WAV 동시 반환)
+curl -X POST "http://localhost:8003/tts/convert-rag-response" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "success": true,
+    "messages": [
+      {"HumanMessage": "자동차보험료 계산 방법 알려줘"},
+      {"AIMessage": "자동차보험료는 차량가격, 운전자 나이, 운전경력 등을 종합적으로 고려하여 계산됩니다."}
+    ],
+    "citations": [
+      {
+      "title": "보험료계산서.pdf", 
+      "page": "15",
+      "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2501)_..."
+    }
+    ]
+  }' \
+  --output rag_multipart_response.txt
+
+# RAG 응답을 WAV 파일로 직접 다운로드
+curl -X POST "http://localhost:8003/tts/convert-rag-response-file" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "success": true,
+    "messages": [
+      {"HumanMessage": "자동차보험료 계산 방법 알려줘"},
+      {"AIMessage": "자동차보험료는 차량가격, 운전자 나이, 운전경력 등을 종합적으로 고려하여 계산됩니다."}
+    ],
+    "citations": [
+      {
+      "title": "보험료계산서.pdf", 
+      "page": "15",
+      "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2501)_..."
+    }
+    ]
+  }' \
+  --output rag_answer.wav
 
 # 영어 음성 생성
 curl -X POST "http://localhost:8003/tts/convert" \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, this is a test of English neural voice.",
-    "voice_name": "en-US-JennyNeural",
-    "style": "friendly"
+    "voice_name": "en-US-JennyNeural"
   }' \
   --output english_test.wav
-
-# 사용 가능한 음성 목록 조회
-curl -X GET "http://localhost:8003/voices"
-
-# 헬스체크
-curl -X GET "http://localhost:8003/health"
 ```
 
 ### 🐍 Python 클라이언트
@@ -391,51 +506,54 @@ class TTSClient:
     def __init__(self, base_url="http://localhost:8003"):
         self.base_url = base_url
     
-    def convert_rag_response(
+    def convert_rag_response_multipart(
         self,
         rag_response: Dict[str, Any],
-        save_audio: bool = True,
-        audio_filename: str = "rag_answer.wav"
-    ) -> Dict[str, Any]:
-        """RAG 응답을 JSON + Base64 음성으로 변환 - 기본 음성 자동 사용"""
+        save_multipart: bool = True,
+        output_filename: str = "rag_multipart_response.txt"
+    ) -> bool:
+        """RAG 응답을 Multipart 형태로 변환 (JSON + WAV 동시 반환)"""
         url = f"{self.base_url}/tts/convert-rag-response"
         
-        # RAG 응답을 직접 전송
         payload = rag_response
         
         try:
-            print(f"🤖 RAG 응답 TTS 변환 시작...")
+            print(f"🤖 RAG 응답 Multipart TTS 변환 시작...")
             start_time = time.time()
             
             response = requests.post(url, json=payload)
             processing_time = time.time() - start_time
             
             if response.status_code == 200:
-                result = response.json()
+                # Multipart 응답 저장
+                if save_multipart:
+                    with open(output_filename, "wb") as f:
+                        f.write(response.content)
                 
-                print(f"✅ RAG-TTS 변환 성공!")
-                print(f"📝 질문: {result['messages'][0].get('HumanMessage', 'N/A')}")
-                print(f"🤖 답변: {result['messages'][1].get('AIMessage', 'N/A')[:100]}...")
-                print(f"🎭 사용된 음성: {result['voice_info']['voice_name']}")
+                # 헤더 정보 출력
+                rag_success = response.headers.get('X-RAG-Success', 'Unknown')
+                voice_name = response.headers.get('X-Voice-Name', 'Unknown')
+                citations_count = response.headers.get('X-Citations-Count', '0')
+                audio_format = response.headers.get('X-Audio-Format', 'Unknown')
+                response_type = response.headers.get('X-Response-Type', 'Unknown')
+                
+                print(f"✅ RAG Multipart TTS 변환 성공!")
+                print(f"📁 저장 위치: {output_filename}")
+                print(f"🎭 사용된 음성: {voice_name}")
+                print(f"✅ RAG 성공 여부: {rag_success}")
+                print(f"📚 인용 문서 수: {citations_count}개")
+                print(f"🔊 오디오 포맷: {audio_format}")
+                print(f"📦 응답 타입: {response_type}")
                 print(f"⏱️ 처리 시간: {processing_time:.2f}초")
-                print(f"📚 인용 문서: {len(result['citations'])}개")
-                print(f"🔊 음성 파일 크기: {result['voice_info']['file_size']}bytes")
                 
-                # 오디오 파일 저장 (선택사항)
-                if save_audio and result.get('audio_file'):
-                    audio_data = base64.b64decode(result['audio_file'])
-                    with open(audio_filename, 'wb') as f:
-                        f.write(audio_data)
-                    print(f"🔊 음성 파일 저장: {audio_filename}")
-                
-                return result
+                return True
             else:
-                print(f"❌ RAG-TTS 변환 실패: {response.text}")
-                return None
+                print(f"❌ RAG Multipart TTS 변환 실패: {response.text}")
+                return False
                 
         except Exception as e:
             print(f"❌ 요청 실패: {e}")
-            return None
+            return False
 
     def convert_rag_response_to_file(
         self,
@@ -488,22 +606,14 @@ class TTSClient:
         self, 
         text: str,
         voice_name: str = "ko-KR-SunHiNeural",
-        rate: int = 0,
-        pitch: int = 0,
-        style: str = "neutral",
-        role: str = "narrator",
         output_file: str = "output.wav"
     ):
-        """텍스트를 음성으로 변환"""
+        """텍스트를 음성으로 변환 (WAV 파일 직접 반환)"""
         url = f"{self.base_url}/tts/convert"
         
         payload = {
             "text": text,
-            "voice_name": voice_name,
-            "rate": rate,
-            "pitch": pitch,
-            "style": style,
-            "role": role
+            "voice_name": voice_name
         }
         
         try:
@@ -517,15 +627,18 @@ class TTSClient:
                     f.write(response.content)
                 
                 # 헤더 정보 출력
-                voice_name = response.headers.get('X-Voice-Name', 'Unknown')
-                server_time = response.headers.get('X-Processing-Time', 'Unknown')
+                voice_name_header = response.headers.get('X-Voice-Name', 'Unknown')
                 text_length = response.headers.get('X-Text-Length', 'Unknown')
+                tts_success = response.headers.get('X-TTS-Success', 'Unknown')
+                tts_message = response.headers.get('X-TTS-Message', 'Unknown')
                 
                 print(f"✅ 음성 생성 성공!")
                 print(f"📁 저장 위치: {output_file}")
-                print(f"🎭 사용된 음성: {voice_name}")
-                print(f"⏱️ 처리 시간: {processing_time:.2f}초 (서버: {server_time}초)")
+                print(f"🎭 사용된 음성: {voice_name_header}")
+                print(f"⏱️ 처리 시간: {processing_time:.2f}초")
                 print(f"📝 텍스트 길이: {text_length}자")
+                print(f"✅ TTS 성공: {tts_success}")
+                print(f"💬 메시지: {tts_message}")
                 
                 return True
             else:
@@ -536,20 +649,55 @@ class TTSClient:
             print(f"❌ 요청 실패: {e}")
             return False
     
-    def get_available_voices(self):
-        """사용 가능한 음성 목록 조회"""
+    def convert_text_json(
+        self, 
+        text: str,
+        voice_name: str = "ko-KR-SunHiNeural"
+    ):
+        """텍스트를 음성으로 변환 (JSON 응답)"""
+        url = f"{self.base_url}/tts/convert-json"
+        
+        payload = {
+            "text": text,
+            "voice_name": voice_name
+        }
+        
         try:
-            response = requests.get(f"{self.base_url}/voices")
+            start_time = time.time()
+            response = requests.post(url, json=payload)
+            processing_time = time.time() - start_time
+            
             if response.status_code == 200:
-                voices = response.json()
-                print(f"📢 총 {voices['total_count']}개의 음성 사용 가능")
+                result = response.json()
                 
-                for voice in voices['voices'][:10]:  # 상위 10개만 출력
-                    print(f"  🎭 {voice['name']} ({voice['display_name']}) - {voice['language']} {voice['gender']}")
+                print(f"✅ 음성 생성 성공 (JSON)!")
+                print(f"📁 임시 파일: {result['filename']}")
+                print(f"🎭 사용된 음성: {result['voice_name']}")
+                print(f"⏱️ 처리 시간: {processing_time:.2f}초")
+                print(f"📝 텍스트 길이: {result['text_length']}자")
+                print(f"✅ 성공: {result['success']}")
+                print(f"💬 메시지: {result['message']}")
                 
-                return voices
+                return result
             else:
-                print(f"❌ 음성 목록 조회 실패: {response.text}")
+                print(f"❌ 음성 생성 실패: {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ 요청 실패: {e}")
+            return None
+    
+    def get_service_info(self):
+        """서비스 정보 조회"""
+        try:
+            response = requests.get(f"{self.base_url}/")
+            if response.status_code == 200:
+                info = response.json()
+                print(f"📢 TTS Service: {info['message']}")
+                print(f"📈 상태: {info['status']}")
+                return info
+            else:
+                print(f"❌ 서비스 정보 조회 실패: {response.text}")
                 return None
         except Exception as e:
             print(f"❌ 요청 실패: {e}")
@@ -562,8 +710,10 @@ class TTSClient:
             if response.status_code == 200:
                 health = response.json()
                 print(f"✅ TTS Service: {health['status']}")
-                print(f"🔗 Azure 연결: {health.get('azure_connection', 'Unknown')}")
-                print(f"🎭 사용 가능한 음성: {health.get('available_voices', 'Unknown')}개")
+                print(f"🔖 서비스: {health['service']}")
+                print(f"📌 버전: {health['version']}")
+                print(f"🌍 Azure 리전: {health['azure_speech_region']}")
+                print(f"🎭 기본 음성: {health['default_voice']}")
                 return True
             else:
                 print("❌ TTS Service: unhealthy")
@@ -580,6 +730,11 @@ if __name__ == "__main__":
     if client.health_check():
         print("\n" + "="*50)
         
+        # 서비스 정보 확인
+        client.get_service_info()
+        
+        print("\n" + "="*50)
+        
         # 🆕 RAG 응답 테스트 데이터
         sample_rag_response = {
             "success": True,
@@ -588,17 +743,25 @@ if __name__ == "__main__":
                 {"AIMessage": "자동차 보험료는 차량 가격, 운전자 나이, 운전 경력, 사고 이력 등을 종합적으로 고려하여 계산됩니다."}
             ],
             "citations": [
-                {"title": "자동차보험_기본약관.pdf", "page": 15},
-                {"title": "보험료산출기준_가이드.pdf", "page": 23}
+                {
+                    "title": "자동차보험_기본약관.pdf", 
+                    "page": "15",
+                    "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2501)_..."
+                },
+                {
+                    "title": "보험료산출기준_가이드.pdf", 
+                    "page": "23",
+                    "download_link": "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2502)_..."
+                }
             ]
         }
         
-        # 🆕 RAG 응답을 JSON + Base64 음성으로 변환 - 기본 음성 자동 사용
-        print("\n🤖 RAG-TTS JSON 변환 테스트")
-        rag_result = client.convert_rag_response(
+        # 🆕 RAG 응답을 Multipart로 변환 (JSON + WAV 동시 반환)
+        print("\n🤖 RAG-TTS Multipart 변환 테스트")
+        client.convert_rag_response_multipart(
             rag_response=sample_rag_response,
-            save_audio=True,
-            audio_filename="rag_answer_json.wav"
+            save_multipart=True,
+            output_filename="rag_multipart_response.txt"
         )
         
         # 🆕 RAG 응답을 직접 WAV 파일로 변환
@@ -610,17 +773,25 @@ if __name__ == "__main__":
         
         print("\n" + "="*50)
         
-        # 기존 기본 음성 생성 테스트
+        # 기본 음성 생성 테스트 (WAV 파일)
         client.convert_text(
             text="안녕하세요! TTS 서비스 기본 테스트입니다.",
             output_file="basic_test.wav"
         )
         
+        # JSON 응답 형태 테스트
+        print("\n📋 JSON 응답 테스트")
+        json_result = client.convert_text_json(
+            text="JSON 응답 형태로 테스트해보겠습니다."
+        )
+        
         print("\n🎵 모든 음성 파일이 생성되었습니다!")
         print("📁 생성된 파일:")
-        print("  • rag_answer_json.wav (RAG JSON 응답)")
+        print("  • rag_multipart_response.txt (RAG Multipart 응답)")
         print("  • rag_answer_file.wav (RAG 파일 응답)")
         print("  • basic_test.wav (기본 텍스트 변환)")
+        if json_result:
+            print(f"  • {json_result['filename']} (JSON 응답 방식)")
 ```
 
 ### 🌐 JavaScript/Node.js 클라이언트
@@ -637,10 +808,6 @@ class TTSClient {
         const {
             text,
             voiceName = 'ko-KR-SunHiNeural',
-            rate = 0,
-            pitch = 0,
-            style = 'neutral',
-            role = 'narrator',
             outputFile = 'output.wav'
         } = options;
 
@@ -648,11 +815,7 @@ class TTSClient {
         
         const payload = {
             text: text,
-            voice_name: voiceName,
-            rate: rate,
-            pitch: pitch,
-            style: style,
-            role: role
+            voice_name: voiceName
         };
 
         try {
@@ -673,14 +836,17 @@ class TTSClient {
 
                 // 헤더 정보 출력
                 const voiceNameHeader = response.headers.get('x-voice-name') || 'Unknown';
-                const serverTime = response.headers.get('x-processing-time') || 'Unknown';
                 const textLength = response.headers.get('x-text-length') || 'Unknown';
+                const ttsSuccess = response.headers.get('x-tts-success') || 'Unknown';
+                const ttsMessage = response.headers.get('x-tts-message') || 'Unknown';
 
                 console.log('✅ 음성 생성 성공!');
                 console.log(`📁 저장 위치: ${outputFile}`);
                 console.log(`🎭 사용된 음성: ${voiceNameHeader}`);
-                console.log(`⏱️ 처리 시간: ${processingTime.toFixed(2)}초 (서버: ${serverTime}초)`);
+                console.log(`⏱️ 처리 시간: ${processingTime.toFixed(2)}초`);
                 console.log(`📝 텍스트 길이: ${textLength}자`);
+                console.log(`✅ TTS 성공: ${ttsSuccess}`);
+                console.log(`💬 메시지: ${ttsMessage}`);
 
                 return true;
             } else {
@@ -694,21 +860,110 @@ class TTSClient {
         }
     }
 
-    async getAvailableVoices() {
+    async convertTextJson(options = {}) {
+        const {
+            text,
+            voiceName = 'ko-KR-SunHiNeural'
+        } = options;
+
+        const url = `${this.baseUrl}/tts/convert-json`;
+        
+        const payload = {
+            text: text,
+            voice_name: voiceName
+        };
+
         try {
-            const response = await fetch(`${this.baseUrl}/voices`);
+            const startTime = Date.now();
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const processingTime = (Date.now() - startTime) / 1000;
+
             if (response.ok) {
-                const voices = await response.json();
-                console.log(`📢 총 ${voices.total_count}개의 음성 사용 가능`);
-                
-                voices.voices.slice(0, 10).forEach(voice => {
-                    console.log(`  🎭 ${voice.name} (${voice.display_name}) - ${voice.language} ${voice.gender}`);
-                });
-                
-                return voices;
+                const result = await response.json();
+
+                console.log('✅ 음성 생성 성공 (JSON)!');
+                console.log(`📁 임시 파일: ${result.filename}`);
+                console.log(`🎭 사용된 음성: ${result.voice_name}`);
+                console.log(`⏱️ 처리 시간: ${processingTime.toFixed(2)}초`);
+                console.log(`📝 텍스트 길이: ${result.text_length}자`);
+                console.log(`✅ 성공: ${result.success}`);
+                console.log(`💬 메시지: ${result.message}`);
+
+                return result;
             } else {
                 const error = await response.text();
-                console.log(`❌ 음성 목록 조회 실패: ${error}`);
+                console.log(`❌ 음성 생성 실패: ${error}`);
+                return null;
+            }
+        } catch (error) {
+            console.log(`❌ 요청 실패: ${error.message}`);
+            return null;
+        }
+    }
+
+    async convertRagResponseToFile(ragResponse, outputFile = 'rag_answer.wav') {
+        const url = `${this.baseUrl}/tts/convert-rag-response-file`;
+
+        try {
+            const startTime = Date.now();
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ragResponse)
+            });
+
+            const processingTime = (Date.now() - startTime) / 1000;
+
+            if (response.ok) {
+                const audioBuffer = await response.buffer();
+                fs.writeFileSync(outputFile, audioBuffer);
+
+                // 헤더 정보 출력
+                const voiceName = response.headers.get('x-voice-name') || 'Unknown';
+                const ragSuccess = response.headers.get('x-rag-success') || 'Unknown';
+                const citationsCount = response.headers.get('x-citations-count') || '0';
+                const firstCitation = response.headers.get('x-first-citation') || 'None';
+
+                console.log('✅ RAG 음성 파일 생성 성공!');
+                console.log(`📁 저장 위치: ${outputFile}`);
+                console.log(`🎭 사용된 음성: ${voiceName}`);
+                console.log(`✅ RAG 성공 여부: ${ragSuccess}`);
+                console.log(`📚 인용 문서 수: ${citationsCount}개`);
+                console.log(`📄 첫 번째 인용: ${firstCitation}`);
+                console.log(`⏱️ 처리 시간: ${processingTime.toFixed(2)}초`);
+
+                return true;
+            } else {
+                const error = await response.text();
+                console.log(`❌ RAG 음성 파일 생성 실패: ${error}`);
+                return false;
+            }
+        } catch (error) {
+            console.log(`❌ 요청 실패: ${error.message}`);
+            return false;
+        }
+    }
+
+    async getServiceInfo() {
+        try {
+            const response = await fetch(`${this.baseUrl}/`);
+            if (response.ok) {
+                const info = await response.json();
+                console.log(`📢 TTS Service: ${info.message}`);
+                console.log(`📈 상태: ${info.status}`);
+                return info;
+            } else {
+                const error = await response.text();
+                console.log(`❌ 서비스 정보 조회 실패: ${error}`);
                 return null;
             }
         } catch (error) {
@@ -723,8 +978,10 @@ class TTSClient {
             if (response.ok) {
                 const health = await response.json();
                 console.log(`✅ TTS Service: ${health.status}`);
-                console.log(`🔗 Azure 연결: ${health.azure_connection || 'Unknown'}`);
-                console.log(`🎭 사용 가능한 음성: ${health.available_voices || 'Unknown'}개`);
+                console.log(`🔖 서비스: ${health.service}`);
+                console.log(`📌 버전: ${health.version}`);
+                console.log(`🌍 Azure 리전: ${health.azure_speech_region}`);
+                console.log(`🎭 기본 음성: ${health.default_voice}`);
                 return true;
             } else {
                 console.log('❌ TTS Service: unhealthy');
@@ -747,8 +1004,9 @@ class TTSClient {
     if (isHealthy) {
         console.log('\n' + '='.repeat(50));
         
-        // 사용 가능한 음성 목록 조회
-        await client.getAvailableVoices();
+        // 서비스 정보 확인
+        await client.getServiceInfo();
+        
         console.log('\n' + '='.repeat(50));
         
         // 기본 한국어 음성 생성
@@ -757,25 +1015,47 @@ class TTSClient {
             outputFile: 'korean_basic.wav'
         });
         
-        // 감정이 담긴 한국어 음성 생성
-        await client.convertText({
-            text: '정말 놀랍고 기쁜 소식입니다!',
-            voiceName: 'ko-KR-SunHiNeural',
-            style: 'cheerful',
-            rate: 20,
-            pitch: 10,
-            outputFile: 'korean_cheerful.wav'
+        // JSON 응답 형태 테스트
+        const jsonResult = await client.convertTextJson({
+            text: 'JSON 응답 형태로 테스트해보겠습니다.'
         });
+        
+        // RAG 응답 테스트
+        const sampleRagResponse = {
+            success: true,
+            messages: [
+                { HumanMessage: "자동차 보험료 계산 방법 알려줘" },
+                { AIMessage: "자동차 보험료는 차량 가격, 운전자 나이, 운전 경력 등을 종합적으로 고려하여 계산됩니다." }
+            ],
+            citations: [
+                { 
+                    title: "자동차보험_기본약관.pdf", 
+                    page: "15",
+                    download_link: "https://www.hwgeneralins.com/upload/hmpag_upload/product/movable(2501)_..."
+                }
+            ]
+        };
+
+        await client.convertRagResponseToFile(
+            sampleRagResponse,
+            'rag_answer.wav'
+        );
         
         // 영어 음성 생성
         await client.convertText({
             text: 'Hello! This is an English neural voice test.',
             voiceName: 'en-US-JennyNeural',
-            style: 'friendly',
-            outputFile: 'english_friendly.wav'
+            outputFile: 'english_test.wav'
         });
         
         console.log('\n🎵 모든 음성 파일이 생성되었습니다!');
+        console.log('📁 생성된 파일:');
+        console.log('  • korean_basic.wav (기본 텍스트 변환)');
+        console.log('  • rag_answer.wav (RAG 파일 응답)');
+        console.log('  • english_test.wav (영어 음성)');
+        if (jsonResult) {
+            console.log(`  • ${jsonResult.filename} (JSON 응답 방식)`);
+        }
     }
 })();
 ```
